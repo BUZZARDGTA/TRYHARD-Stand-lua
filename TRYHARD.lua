@@ -18,7 +18,7 @@ util.require_natives("1660775568-uno")
 -- global locals
 local JSkey = require "JSkeyLib"
 local my_root = menu.my_root()
-local current_script_version = 0.4
+local current_script_version = 0.5
 
 -- CROSSHAIR's locals
 local crosshair_file = "cr1.png" -- default file name
@@ -122,8 +122,6 @@ end)
 
 my_root:toggle_loop("Auto Refill Snacks & Armours", {}, "Automatically refill Snacks & Armor every 10 seconds.",
     function()
-        util.yield(10000) -- No need to spam it.
-
         STAT_SET_INT("NO_BOUGHT_YUM_SNACKS", 30)
         STAT_SET_INT("NO_BOUGHT_HEALTH_SNACKS", 15)
         STAT_SET_INT("NO_BOUGHT_EPIC_SNACKS", 15)
@@ -135,6 +133,8 @@ my_root:toggle_loop("Auto Refill Snacks & Armours", {}, "Automatically refill Sn
         for i = 1, 5 do
             STAT_SET_INT("MP_CHAR_ARMOUR_" .. i .. "_COUNT", 10)
         end
+
+        util.yield(10000) -- No need to spam it.
 end)
 
 function is_player_driver(player_ped)
@@ -170,18 +170,13 @@ my_root:toggle_loop("Detect cheaters (beta)", {""}, 'Detect cheaters who\'re usi
                     or (player.melee_weapon_damage_modifier > default_max_bst_melee_weapon_damage_modifier)
                 then
                     player.name = players.get_name(player.pid)
-                    cheaters[player.pid] = {
-                        weapon_damage_modifier = player.weapon_damage_modifier,
-                        melee_weapon_damage_modifier = player.melee_weapon_damage_modifier,
-                        organisation_type = player.org_type,
-                        name = player.name
-                    }
+                    cheaters[player.pid] = player
                 end
             end
         end
 
         for pid, player in pairs(cheaters) do
-            print("Player " .. player.name .. " is detected as a cheater! Weapon Damage Modifier: " .. player.weapon_damage_modifier)
+            print("Player " .. player.name .. " is detected as a cheater! Weapon Damage Modifier: " .. player.weapon_damage_modifier .. " Melee: " .. player.melee_weapon_damage_modifier)
         end
 end)
 
