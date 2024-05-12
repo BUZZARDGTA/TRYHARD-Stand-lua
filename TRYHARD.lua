@@ -1,4 +1,4 @@
--- TRYHARD lua for STAND by IB_U_Z_Z_A_R_Dl
+-- TRYHARD lua for Stand by IB_U_Z_Z_A_R_Dl
 -- GitHub repo: https://github.com/Illegal-Services/TRYHARD-lua
 
 -- CREDITS:
@@ -6,18 +6,27 @@
 --
 -- JerryScript lua by @Jerry123#4508: Original "Hotkey Weapon Thermal Vision" code before I tweaked it.
 -- Heist Control lua by @icedoomfist: Original "Auto Refill Snacks & Armours" code before I tweaked it.
--- Crosshair lua by @CocoW: Original "Better Crosshair" code before I tweaked it.
+-- Crosshair lua by @CocoW: Original "Idle Crosshair" code before I tweaked it.
 --
 -- People that helped me in Stand's Discord server in #Programming:
--- @hexarobi, @someoneidfk, @asuka666, @prisuhm and everyone else that I forgot.
+-- @hexarobi, @someoneidfk, @asuka666, @prisuhm, @jaymontana36, @playboyprime
+-- and everyone else that I forgot.
 
 util.require_natives("1660775568-uno")
 
-local CURRENT_SCRIPT_VERSION = 0.6
-local TITLE = "TRYHARD " .. "v" .. CURRENT_SCRIPT_VERSION .. " by IBU_Z_Z_A_R_Dl"
+local GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH=function(...)return native_invoker.uno_int(0x2C83A9DA6BFFC4F9,...)end
+local IS_WARNING_MESSAGE_READY_FOR_CONTROL=function(...)return native_invoker.uno_bool(0xAF42195A42C63BBA,...)end
+local IS_MP_TEXT_CHAT_TYPING=function(...)return native_invoker.uno_bool(0xB118AF58B5F332A1,...)end
+local IS_PED_SWITCHING_WEAPON=function(...)return native_invoker.uno_bool(0x3795688A307E1EB6,...)end
+local IS_ENTITY_A_GHOST = function(...)return native_invoker.uno_bool(0x21D04D7BC538C146,...)end
+local nv = native_invoker
+local PAD_SET_CONTROL_VALUE_NEXT_FRAME= function(padIndex,control,amount)nv.begin_call();nv.push_arg_int(padIndex);nv.push_arg_int(control);nv.push_arg_float(amount);nv.end_call("E8A25867FBA3B05E");return nv.get_return_value_bool();end
 
-local my_root = menu.my_root()
-local joaat = util.joaat
+local CURRENT_SCRIPT_VERSION <const> = "0.7"
+local TITLE <const> = "TRYHARD " .. "v" .. CURRENT_SCRIPT_VERSION .. " by IBU_Z_Z_A_R_Dl"
+
+local MY_ROOT <const> = menu.my_root()
+local joaat <const> = util.joaat
 
 function STAT_SET_INT(stat, value)
     STATS.STAT_SET_INT(joaat(ADD_MP_INDEX(stat)), value, true)
@@ -49,52 +58,254 @@ function ADD_MP_INDEX(stat)
     return stat
 end
 
-function enable_thermal_vision(thermal_command)
-    menu.trigger_command(thermal_command, "on")
-    GRAPHICS._SEETHROUGH_SET_MAX_THICKNESS(50.0)
+function is_phone_open()
+	return (
+        GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("cellphone_flashhand")) > 0
+    ) and true or false
 end
 
-function disable_thermal_vision(thermal_command)
-    menu.trigger_command(thermal_command, "off")
-    GRAPHICS._SEETHROUGH_SET_MAX_THICKNESS(1.0)
+function is_any_game_overlay_open()
+    if HUD.IS_PAUSE_MENU_ACTIVE() then
+        return true
+    end
+
+    local scripts_list = {
+        "maintransition",
+        "pausemenu",
+        "pausemenucareerhublaunch",
+        "pausemenu_example",
+        "pausemenu_map",
+        "pausemenu_multiplayer",
+        "pausemenu_sp_repeat",
+        "apparcadebusiness",
+        "apparcadebusinesshub",
+        "appavengeroperations",
+        "appbikerbusiness",
+        "appbroadcast",
+        "appbunkerbusiness",
+        "appbusinesshub",
+        "appcamera",
+        "appchecklist",
+        "appcontacts",
+        "appcovertops",
+        "appemail",
+        "appextraction",
+        "appfixersecurity",
+        "apphackertruck",
+        "apphs_sleep",
+        "appimportexport",
+        "appinternet",
+        "appjipmp",
+        "appmedia",
+        "appmpbossagency",
+        "appmpemail",
+        "appmpjoblistnew",
+        "apporganiser",
+        "appprogresshub",
+        "apprepeatplay",
+        "appsecurohack",
+        "appsecuroserv",
+        "appsettings",
+        "appsidetask",
+        "appsmuggler",
+        "apptextmessage",
+        "apptrackify",
+        "appvlsi",
+        "appzit",
+    }
+
+    for _, app in ipairs(scripts_list) do
+        if GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat(app)) > 0 then
+            return true
+        end
+    end
+
+    return false
 end
 
 print(string.rep("-", 50))
 
-my_root:divider("<-  " ..  TITLE .. "  ->")
+MY_ROOT:divider("<- " ..  TITLE .. " ->")
 
-local show_crosshair = my_root:list("Better Crosshair")
-local hide_crosshair_in_vehicles = true
-local hide_crosshair_in_stand_menu = true
-local display_warning_message = true
-local crosshair_tex = directx.create_texture(filesystem.scripts_dir() .. "cr1.png")
-local crosshair_size = 0.025
-local crosshair_idle_colour = {r=1.0,g=1.0,b=1.0,a=1.0}
-local crosshair_hostile_ped_colour = {r=1.0,g=0.0,b=0.0,a=1.0}
-local crosshair_friendly_ped_colour = {r=0.0,g=0.0,b=1.0,a=1.0}
-local crosshair_default_ped_colour = {r=1.0,g=1.0,b=1.0,a=0.5}
-local crosshair_colour = crosshair_idle_colour
-local sniper_rifle_hash = joaat("weapon_sniperrifle")
-local heavy_sniper_hash = joaat("weapon_heavysniper")
-local heavy_sniper_mk2_hash = joaat("weapon_heavysniper_mk2")
-local marksman_rifle_hash = joaat("weapon_marksmanrifle")
-local marksman_rifle_mk2_hash = joaat("weapon_marksmanrifle_mk2")
-local precision_rifle_hash = joaat("weapon_precisionrifle")
-local musket_hash = joaat("weapon_musket")
+local SHOW_IDLE_CROSSHAIR <const> = MY_ROOT:list("Idle Crosshair")
+local idle_crosshair_texture <const> = directx.create_texture(filesystem.scripts_dir() .. "cr1.png")
+local idle_crosshair_default_colour <const> = {r=0.88,g=0.88,b=0.88,a=1.0}
+local hide_idle_crosshair_in_vehicles = true
+local hide_idle_crosshair_in_interaction_menu = true
+local hide_idle_crosshair_in_chat_menu = true
+local hide_idle_crosshair_in_phone_menu = true
+local hide_idle_crosshair_in_stand_menu = true
+local hide_idle_crosshair_in_stand_command_box_menu = true
+local idle_crosshair_size = 0.028
+local idle_crosshair_colour = idle_crosshair_default_colour
 
-show_crosshair:toggle_loop("Render Alternative Crosshair (beta)", {}, "Replace the original game's crosshair with an enhanced and customizable one.", function()
-    if display_warning_message then
-        display_warning_message = false
-        util.toast(
-            "[Lua Script]: " .. TITLE .. "\n"
-            .. "\nI'm aware that aiming at vehicles with a ped inside is glitched."
-            .. "\nI couldn't fin a solution for it yet."
+SHOW_IDLE_CROSSHAIR:toggle_loop("Idle Crosshair", {}, "Always render an enhanced and customizable crosshair.", function()
+    if
+        is_any_game_overlay_open()
+        or util.is_session_transition_active()
+        or HUD.IS_WARNING_MESSAGE_ACTIVE()
+        or IS_WARNING_MESSAGE_READY_FOR_CONTROL()
+        or HUD.IS_NAVIGATING_MENU_CONTENT()
+        or not HUD.IS_MINIMAP_RENDERING()
+        or GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("maintransition")) >= 1
+        or (
+            GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("pi_menu")) == 0
+            and GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("am_pi_menu")) == 0
         )
+        or (
+            GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("main")) == 0
+            and GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("freemode")) == 0
+        )
+        or (
+            util.is_interaction_menu_open()
+            and hide_idle_crosshair_in_interaction_menu
+        )
+        or (
+            menu.is_open()
+            and hide_idle_crosshair_in_stand_menu
+        )
+        or (
+            menu.command_box_is_open()
+            and hide_idle_crosshair_in_stand_command_box_menu
+        )
+        or (
+            IS_MP_TEXT_CHAT_TYPING()
+            and hide_idle_crosshair_in_chat_menu
+        )
+        or (
+            is_phone_open()
+            and hide_idle_crosshair_in_phone_menu
+        )
+    then
+        return
     end
 
     if
-        menu.is_open()
-        and hide_crosshair_in_stand_menu
+        (
+            menu.is_open()
+            and hide_idle_crosshair_in_stand_menu
+        )
+            or util.is_session_transition_active()
+            or HUD.IS_PAUSE_MENU_ACTIVE()
+            or not HUD.IS_HUD_COMPONENT_ACTIVE(14)
+    then
+        return
+    end
+
+    local user = PLAYER.PLAYER_ID()
+    if
+        not NETWORK.NETWORK_IS_PLAYER_CONNECTED(user)
+        or not NETWORK.NETWORK_IS_PLAYER_ACTIVE(user)
+        or NETWORK.NETWORK_IS_PLAYER_FADING(user)
+        or NETWORK.NETWORK_IS_PLAYER_IN_MP_CUTSCENE(user)
+        or NETWORK.IS_PLAYER_IN_CUTSCENE(user)
+        or not PLAYER.IS_PLAYER_PLAYING(user)
+        or PLAYER.IS_PLAYER_DEAD(user)
+    then
+        return
+    end
+    local user_ped = PLAYER.PLAYER_PED_ID()
+    if PED.IS_PED_IN_ANY_VEHICLE(user_ped, false) then
+        if
+            hide_idle_crosshair_in_vehicles
+            or (
+                PLAYER.IS_PLAYER_FREE_AIMING(user)
+                or TASK.GET_IS_TASK_ACTIVE(user_ped, 190) -- CTaskMountThrowProjectile
+            )
+        then
+            return
+        end
+    else
+        if
+            TASK.GET_IS_TASK_ACTIVE(user_ped, 15)     -- CTaskDoNothing (scripted player moves (ex: when reaching a laptop))
+            or TASK.GET_IS_TASK_ACTIVE(user_ped, 135) -- CTaskSynchronizedScene (ex:player using laptop / transitions)
+            or TASK.GET_IS_TASK_ACTIVE(user_ped, 997) -- CTaskDyingDead
+            or TASK.GET_IS_TASK_ACTIVE(user_ped, 289) -- CTaskAimAndThrowProjectile -- Downside is that it adds the [BUG] bellow...
+        then
+            return
+        end
+
+        if
+            PLAYER.IS_PLAYER_FREE_AIMING(user)
+
+            and not IS_PED_SWITCHING_WEAPON(user_ped)
+            and WEAPON.IS_PED_WEAPON_READY_TO_SHOOT(user_ped)
+
+            and WEAPON.GET_SELECTED_PED_WEAPON(user_ped) ~= joaat("weapon_hominglauncher") -- Alternative: WEAPON.GET_CURRENT_PED_WEAPON
+        then
+            -- [BUG]: When the player aims in 1rd person view with a "ThrowProjectile", the crosshair is not rendering while not aiming.
+            -- [BUG]: When the player aims in 3rd person view, for a short moment it doesn't have any crosshair. (this is due to camera adjusting)
+            return
+        end
+    end
+
+    directx.draw_texture(
+        idle_crosshair_texture, -- id
+        idle_crosshair_size,    -- sizeX
+        idle_crosshair_size,    -- sizeY
+        0.5,                    -- centerX
+        0.5,                    -- centerY
+        0.5,                    -- posX
+        0.5,                    -- posY
+        0.0,                    -- rotation
+        idle_crosshair_colour   -- colour
+    )
+end)
+
+SHOW_IDLE_CROSSHAIR:divider("---------------------------------------")
+SHOW_IDLE_CROSSHAIR:divider("Options:")
+SHOW_IDLE_CROSSHAIR:divider("---------------------------------------")
+SHOW_IDLE_CROSSHAIR:toggle("Hide Idle Crosshair in Vehicles", {}, "Stops the idle crosshair rendering when in vehicles.", function(toggle)
+    hide_idle_crosshair_in_vehicles = toggle
+end, true)
+SHOW_IDLE_CROSSHAIR:toggle("Hide Idle Crosshair if Interaction Opened", {}, "Stops the idle crosshair rendering when the interaction menu is opened.", function(toggle)
+    hide_idle_crosshair_in_interaction_menu = toggle
+end, true)
+SHOW_IDLE_CROSSHAIR:toggle("Hide Idle Crosshair if Chat Opened", {}, "Stops the idle crosshair rendering when the chat menu is opened.", function(toggle)
+    hide_idle_crosshair_in_chat_menu = toggle
+end, true)
+SHOW_IDLE_CROSSHAIR:toggle("Hide Idle Crosshair if Phone Opened", {}, "Stops the idle crosshair rendering when the phone menu is opened.", function(toggle)
+    hide_idle_crosshair_in_phone_menu = toggle
+end, true)
+SHOW_IDLE_CROSSHAIR:toggle("Hide Idle Crosshair if Stand Opened", {}, "Stops the idle crosshair rendering when the Stand menu is opened.", function(toggle)
+    hide_idle_crosshair_in_stand_menu = toggle
+end, true)
+SHOW_IDLE_CROSSHAIR:toggle("Hide Idle Crosshair if Command Box Opened", {}, "Stops the idle crosshair rendering when the Stand's Command Box menu is opened.", function(toggle)
+    hide_idle_crosshair_in_stand_command_box_menu = toggle
+end, true)
+SHOW_IDLE_CROSSHAIR:slider_float("Idle Crosshair Size", {}, "Changes the rendered idle crosshair size.", 10, 50, 28, 1, function(value)
+    idle_crosshair_size = value / 1000
+end)
+SHOW_IDLE_CROSSHAIR:colour("Idle Crosshair Colour", {}, "Changes the rendered idle crosshair colour.", idle_crosshair_colour, false, function(colour)
+    idle_crosshair_colour = colour
+end)
+
+local HOTKEY_SUICIDE <const> = MY_ROOT:list("Hotkey Suicide")
+local suicide_loop = false
+local last_suicide_request
+
+HOTKEY_SUICIDE:toggle_loop("Hotkey Suicide", {}, 'Plays a C4 EWO macro on double-tapping "G" key.\n\nFOR IT TO WORKS, YOU MIGHT NEED TO DISABLE "Lock Weapons" SO THAT YOUR PED CAN RECEIVES A C4 IN THEIR INVENTORY.\n\nIt has been reported that this option is not working for some people.', function()
+    if
+        is_any_game_overlay_open()
+        or util.is_session_transition_active()
+        or HUD.IS_WARNING_MESSAGE_ACTIVE()
+        or IS_WARNING_MESSAGE_READY_FOR_CONTROL()
+        or HUD.IS_NAVIGATING_MENU_CONTENT()
+        or not HUD.IS_MINIMAP_RENDERING()
+        or GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("maintransition")) >= 1
+        or (
+            GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("pi_menu")) == 0
+            and GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("am_pi_menu")) == 0
+        )
+        or (
+            GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("main")) == 0
+            and GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("freemode")) == 0
+        )
+        or util.is_interaction_menu_open()
+        or menu.is_open()
+        or menu.command_box_is_open()
+        or IS_MP_TEXT_CHAT_TYPING()
+        or is_phone_open()
     then
         return
     end
@@ -106,9 +317,8 @@ show_crosshair:toggle_loop("Render Alternative Crosshair (beta)", {}, "Replace t
         or not NETWORK.NETWORK_IS_PLAYER_ACTIVE(user)
         or PLAYER.IS_PLAYER_DEAD(user)
         or NETWORK.IS_PLAYER_IN_CUTSCENE(user)
+        or NETWORK.NETWORK_IS_PLAYER_IN_MP_CUTSCENE(user)
         or NETWORK.NETWORK_IS_PLAYER_FADING(user)
-        or HUD.IS_PAUSE_MENU_ACTIVE()
-        or util.is_session_transition_active()
     then
         return
     end
@@ -116,234 +326,180 @@ show_crosshair:toggle_loop("Render Alternative Crosshair (beta)", {}, "Replace t
     local user_ped = PLAYER.PLAYER_PED_ID()
     if
         PED.IS_PED_IN_ANY_VEHICLE(user_ped, false)
-        and hide_crosshair_in_vehicles
+        or IS_ENTITY_A_GHOST(user_ped) -- is player in passive mode
     then
         return
     end
 
-    if PLAYER.IS_PLAYER_FREE_AIMING(user) then
-        HUD.HIDE_HUD_COMPONENT_THIS_FRAME(14)
+    local suicide = false
 
-        local ped_info = {
-            is_a_ped = nil,
-            is_a_player = nil,
-            is_a_vehicle = nil,
-            is_dead = nil,
-            is_hostile = nil,
-            is_friendly = nil,
-            is_in_vehicle = nil,
-        }
-
-        local pEntity <const> = memory.alloc_int()
-        if PLAYER.GET_ENTITY_PLAYER_IS_FREE_AIMING_AT(user, pEntity) then
-            local aimed_entity = memory.read_int(pEntity)
-            if ENTITY.IS_ENTITY_A_PED(aimed_entity) then
-                ped_info.is_a_ped = true -- PLACEHOLDER \/ FOR COMMENTED CODE BELLOW \/
-                --if PED.IS_PED_IN_ANY_VEHICLE(aimed_entity, true) then
-                --    ped_info.is_in_vehicle = true
-                --    local vehicle = PED.GET_VEHICLE_PED_IS_IN(aimed_entity, false)
-                --    if vehicle then
-                --        if PLAYER.IS_PLAYER_FREE_AIMING_AT_ENTITY(vehicle) then
-                --            print(true)
-                --            ped_info.is_a_vehicle = true
-                --            ped_info.is_a_ped = false
-                --        else
-                --            print(false)
-                --            ped_info.is_a_vehicle = false
-                --            ped_info.is_a_ped = true
-                --        end
-                --    end
-                --else
-                --    ped_info.is_in_vehicle = false
-                --    ped_info.is_a_vehicle = false
-                --    ped_info.is_a_ped = true
-                --end
-
-                ped_info.is_a_player = PED.IS_PED_A_PLAYER(aimed_entity)
-
-                if ped_info.is_hostile == nil then
-                    ped_info.is_hostile = PED.IS_PED_IN_COMBAT(aimed_entity, user_ped)
-                end
-
-                local blip = HUD.GET_BLIP_FROM_ENTITY(aimed_entity)
-                if
-                    blip
-                    and HUD.DOES_BLIP_EXIST(blip)
-                then
-                    local blipColour = HUD.GET_BLIP_COLOUR(blip)
-                    print("DEBUG: blip:" .. blip .. " | blipColour:" .. blipColour)
-                    if ped_info.is_hostile == nil then
-                        ped_info.is_hostile = (
-                            blipColour == 1
-                            or blipColour == 59
-                        ) and true or false
-                    end
-                    ped_info.is_friendly = HUD.GET_BLIP_COLOUR(blip) == 57
-                end
-
-                if ped_info.is_a_ped then
-                    ped_info.is_dead = ENTITY.IS_ENTITY_DEAD(aimed_entity) and true or false
-                end
-            end
-        end
-
-        -- WEAPON.GET_CURRENT_PED_WEAPON
-        local selected_weapon = WEAPON.GET_SELECTED_PED_WEAPON(user_ped)
-        if
-            selected_weapon == sniper_rifle_hash
-            or selected_weapon == heavy_sniper_hash
-            or selected_weapon == heavy_sniper_mk2_hash
-            or selected_weapon == marksman_rifle_hash
-            or selected_weapon == marksman_rifle_mk2_hash
-        then
-            HUD.DISPLAY_SNIPER_SCOPE_THIS_FRAME()
-            return
-        else
-            if ped_info.is_a_ped then
-                if ped_info.is_dead then
-                    crosshair_colour = crosshair_default_ped_colour
-                elseif ped_info.is_hostile then
-                    crosshair_colour = crosshair_hostile_ped_colour
-                elseif ped_info.is_friendly then
-                    crosshair_colour = crosshair_friendly_ped_colour
-                elseif ped_info.is_a_player then
-                    crosshair_colour = crosshair_hostile_ped_colour
-                else
-                    crosshair_colour = crosshair_default_ped_colour
-                end
-            else
-                crosshair_colour = crosshair_idle_colour
-            end
-        end
-
+    if suicide_loop then
+        suicide = true
     else
-        crosshair_colour = crosshair_idle_colour
-    end
+        if PAD.IS_CONTROL_JUST_PRESSED(0, 47) then
+            local currentTime = os.time()
 
-    directx.draw_texture(
-        crosshair_tex,      -- id
-        crosshair_size,     -- sizeX
-        crosshair_size,     -- sizeY
-        0.5,                -- centerX
-        0.5,                -- centerY
-        0.5,                -- posX
-        0.5,                -- posY
-        0.0,                -- rotation
-        crosshair_colour    -- colour
-    )
-
-end, function()
-    display_warning_message = true
-end)
-show_crosshair:divider("---------------------------------------")
-show_crosshair:divider("Options:")
-show_crosshair:divider("---------------------------------------")
-show_crosshair:toggle("Hide Crosshair in Vehicles", {}, "Stops the crosshair rendering when in vehicles.", function(toggle)
-    hide_crosshair_in_vehicles = toggle
-end, true)
-show_crosshair:toggle("Hide Crosshair if Stand Opened", {}, "Stops the crosshair rendering when Stand is opened.", function(toggle)
-    hide_crosshair_in_stand_menu = toggle
-end, true)
-show_crosshair:slider_float("Crosshair Size", {}, "Changes the rendered crosshair size.", 10, 50, 25, 1, function(value)
-    crosshair_size = value / 1000
-end)
-show_crosshair:colour("Crosshair Colour", {}, "Changes the rendered crosshair colour.", crosshair_colour, false, function(colour)
-    crosshair_colour = colour
-end)
-
-local hotkey_suicide = my_root:list("Hotkey Suicide")
-local suicide_loop = false
-local last_suicide_request = nil
-
-hotkey_suicide:toggle_loop("Hotkey Suicide", {}, 'Makes it so you can instantly kill yourself on double-tapping "G" key.', function()
-    local user = PLAYER.PLAYER_ID()
-
-    if PLAYER.IS_PLAYER_PLAYING(user)
-        and NETWORK.NETWORK_IS_PLAYER_CONNECTED(user)
-        and NETWORK.NETWORK_IS_PLAYER_ACTIVE(user)
-        and not PLAYER.IS_PLAYER_DEAD(user)
-        and not NETWORK.IS_PLAYER_IN_CUTSCENE(user)
-        and not NETWORK.NETWORK_IS_PLAYER_FADING(user)
-        and not HUD.IS_PAUSE_MENU_ACTIVE()
-        and not util.is_session_transition_active()
-    then
-        local user_ped = PLAYER.PLAYER_PED_ID()
-        local suicide = false
-
-        if suicide_loop then
-            suicide = true
-        else
-            if PAD.IS_CONTROL_JUST_PRESSED(0, 47) then
-                local currentTime = os.time()
-
-                if last_suicide_request then
-                    if currentTime - last_suicide_request <= 0.1 then
-                        suicide = true
-                    end
+            if last_suicide_request then
+                if currentTime - last_suicide_request <= 0.1 then
+                    suicide = true
                 end
-
-                last_suicide_request = currentTime
             end
-        end
 
-        if suicide then
-            ENTITY.SET_ENTITY_HEALTH(user_ped, 0.0, 0)
+            last_suicide_request = currentTime
         end
     end
-end)
 
-hotkey_suicide:divider("---------------------------------------")
-hotkey_suicide:divider("Options:")
-hotkey_suicide:divider("---------------------------------------")
-hotkey_suicide:toggle("Suicide Loop", {}, "Kill yourself on loop.", function(toggle)
+    if suicide then
+        WEAPON.GIVE_WEAPON_TO_PED(user_ped, joaat("WEAPON_STICKYBOMB"), 1, false, true)
+        WEAPON.SET_CURRENT_PED_WEAPON(user_ped, joaat("WEAPON_STICKYBOMB"))
+        local t1 = os.clock()
+        while not (
+            WEAPON.IS_PED_ARMED(user_ped, 2)
+            and WEAPON.HAS_PED_GOT_WEAPON(user_ped, joaat("WEAPON_STICKYBOMB"), false)
+            and WEAPON.IS_PED_WEAPON_READY_TO_SHOOT(user_ped)
+        ) do
+            if (os.clock() - t1) >= 0.2 then
+                return
+            end
+            util.yield()
+        end
+        util.yield(250)
+        PAD_SET_CONTROL_VALUE_NEXT_FRAME(0, 24, 1)
+        util.yield()
+        PAD_SET_CONTROL_VALUE_NEXT_FRAME(0, 24, 0)
+        util.yield()
+        local t1 = os.clock()
+        while true do
+            local pedCoords = ENTITY.GET_ENTITY_COORDS(user_ped)
+            if MISC.IS_PROJECTILE_TYPE_WITHIN_DISTANCE(pedCoords.x, pedCoords.y, pedCoords.z, joaat("WEAPON_STICKYBOMB"), 5.0, true) then
+                break
+            end
+            if (os.clock() - t1) >= 1 then
+                return
+            end
+            util.yield()
+        end
+        WEAPON.EXPLODE_PROJECTILES(user_ped, joaat("WEAPON_STICKYBOMB"))
+    end
+end)
+HOTKEY_SUICIDE:divider("---------------------------------------")
+HOTKEY_SUICIDE:divider("Options:")
+HOTKEY_SUICIDE:divider("---------------------------------------")
+HOTKEY_SUICIDE:toggle("Suicide Loop", {}, 'Plays a C4 EWO macro in a loop.\n\nFOR IT TO WORKS, YOU MIGHT NEED TO DISABLE "Lock Weapons" SO THAT YOUR PED CAN RECEIVES A C4 IN THEIR INVENTORY.\n\nIt has been reported that this option is not working for some people.', function(toggle)
     suicide_loop = toggle
 end, false)
 
-local hotkey_weapon_thermal_vision = my_root:list("Hotkey Weapon Thermal Vision")
-local thermal_command = menu.ref_by_command_name("thermalvision")
-local reload_with_thermal_vision = true
-
-hotkey_weapon_thermal_vision:toggle_loop("Hotkey Weapon Thermal Vision", {}, 'Makes it so when you aim with any gun, you can toggle thermal vision on "E" key.', function()
-    local user = PLAYER.PLAYER_ID()
+local function enable_thermal_vision(thermal_command)
     local thermal_state = menu.get_value(thermal_command)
 
-    if PLAYER.IS_PLAYER_FREE_AIMING(user) then
+    if not thermal_state then
+        menu.trigger_command(thermal_command, "on")
+        --GRAPHICS._SEETHROUGH_SET_MAX_THICKNESS(50.0)
+    end
+end
+
+local function disable_thermal_vision(thermal_command)
+    local thermal_state = menu.get_value(thermal_command)
+
+    if thermal_state then
+        menu.trigger_command(thermal_command, "off")
+        --GRAPHICS._SEETHROUGH_SET_MAX_THICKNESS(1.0)
+    end
+end
+
+local HOTKEY_WEAPON_THERMAL_VISION <const> = MY_ROOT:list("Hotkey Weapon Thermal Vision")
+local thermal_command <const> = menu.ref_by_command_name("thermalvision")
+local disable_thermal_vision_off_aim = true
+local remember_thermal_vision_last_state = true
+local reload_with_thermal_vision = true
+local combatroll_with_thermal_vision = true
+local thermal_vision_last_state = menu.get_value(thermal_command)
+
+HOTKEY_WEAPON_THERMAL_VISION:toggle_loop("Hotkey Weapon Thermal Vision", {}, 'Makes it so when you aim with any gun, you can toggle thermal vision on "E" key.', function()
+    local user = PLAYER.PLAYER_ID()
+    local user_ped = PLAYER.PLAYER_PED_ID()
+
+    if
+        PLAYER.IS_PLAYER_FREE_AIMING(user)
+        and TASK.GET_IS_TASK_ACTIVE(user_ped, 4)
+        and TASK.GET_IS_TASK_ACTIVE(user_ped, 6)
+        and TASK.GET_IS_TASK_ACTIVE(user_ped, 8)
+        and TASK.GET_IS_TASK_ACTIVE(user_ped, 9)
+        and TASK.GET_IS_TASK_ACTIVE(user_ped, 290)
+    then
+        if
+            PAD.IS_CONTROL_JUST_PRESSED(0, 22)
+            and not PED.IS_PED_SHOOTING(user_ped)
+            and PED.GET_PED_RESET_FLAG(user_ped, 254) -- is player in a Combat Roll
+        then
+            thermal_vision_last_state = menu.get_value(thermal_command)
+
+            if not combatroll_with_thermal_vision then
+                disable_thermal_vision(thermal_command)
+                while PED.GET_PED_RESET_FLAG(user_ped, 254) do
+                    util.yield()
+                end
+            end
+        end
+
+        if thermal_vision_last_state then
+            enable_thermal_vision(thermal_command)
+        else
+            disable_thermal_vision(thermal_command)
+        end
+
         if PAD.IS_CONTROL_JUST_PRESSED(0, 38) then
-            if thermal_state then
+            if menu.get_value(thermal_command) then
                 disable_thermal_vision(thermal_command)
             else
                 enable_thermal_vision(thermal_command)
             end
         end
-    else
-        local user_ped = PLAYER.PLAYER_PED_ID()
+        thermal_vision_last_state = menu.get_value(thermal_command)
+        return
+    end
 
-        if thermal_state then
-            if PED.IS_PED_RELOADING(user_ped) then
-                if not reload_with_thermal_vision then
-                    disable_thermal_vision(thermal_command)
-                    while PED.IS_PED_RELOADING(user_ped) do
-                        util.yield()
-                    end
-                    if PLAYER.IS_PLAYER_FREE_AIMING(user) then
-                        enable_thermal_vision(thermal_command)
-                    end
-                end
-            else
-                disable_thermal_vision(thermal_command)
+    if not menu.get_value(thermal_command) then
+        return
+    end
+
+    if PED.IS_PED_RELOADING(user_ped) then
+        thermal_vision_last_state = menu.get_value(thermal_command)
+
+        if not reload_with_thermal_vision then
+            disable_thermal_vision(thermal_command)
+            while PED.IS_PED_RELOADING(user_ped) do
+                util.yield()
             end
         end
+        return
+    end
+
+    if disable_thermal_vision_off_aim then
+        disable_thermal_vision(thermal_command)
     end
 end)
-hotkey_weapon_thermal_vision:divider("---------------------------------------")
-hotkey_weapon_thermal_vision:divider("Options:")
-hotkey_weapon_thermal_vision:divider("---------------------------------------")
-hotkey_weapon_thermal_vision:toggle("Reload with Thermal Vision", {}, "", function(toggle)
+HOTKEY_WEAPON_THERMAL_VISION:divider("---------------------------------------")
+HOTKEY_WEAPON_THERMAL_VISION:divider("Options:")
+HOTKEY_WEAPON_THERMAL_VISION:divider("---------------------------------------")
+HOTKEY_WEAPON_THERMAL_VISION:toggle("Disable Thermal Vision Off-Aim", {}, "Disable thermal vision when not aiming.", function(toggle)
+    disable_thermal_vision_off_aim = toggle
+end, true)
+
+HOTKEY_WEAPON_THERMAL_VISION:toggle("Remember Thermal Vision Last State", {}, "Remember the last state of thermal vision when toggling.", function(toggle)
+    remember_thermal_vision_last_state = toggle
+end, true)
+
+HOTKEY_WEAPON_THERMAL_VISION:toggle("Reload with Thermal Vision", {}, "Enable thermal vision when reloading weapons.", function(toggle)
     reload_with_thermal_vision = toggle
 end, true)
 
-local auto_refill_snacks_and_armours = my_root:list("Auto Refill Snacks & Armor")
-local user_snacks_and_armors_to_refill = {
+HOTKEY_WEAPON_THERMAL_VISION:toggle("Combat Roll with Thermal Vision", {}, "Enable thermal vision during combat rolls.", function(toggle)
+    combatroll_with_thermal_vision = toggle
+end, true)
+
+local AUTO_REFILL_SNACKS_AND_ARMOURS <const> = MY_ROOT:list("Auto Refill Snacks & Armor")
+local user_snacks_and_armors_to_refill <const> = {
     NO_BOUGHT_YUM_SNACKS = 30,
     NO_BOUGHT_HEALTH_SNACKS = 15,
     NO_BOUGHT_EPIC_SNACKS = 5,
@@ -359,7 +515,7 @@ local user_snacks_and_armors_to_refill = {
     MP_CHAR_ARMOUR_5_COUNT = 10
 }
 
-auto_refill_snacks_and_armours:toggle_loop("Auto Refill Snacks & Armours", {}, "Automatically refill selected Snacks & Armor every 10 seconds.", function()
+AUTO_REFILL_SNACKS_AND_ARMOURS:toggle_loop("Auto Refill Snacks & Armours", {}, "Automatically refill selected Snacks & Armor every 10 seconds.", function()
     STAT_SET_INT("NO_BOUGHT_YUM_SNACKS", user_snacks_and_armors_to_refill["NO_BOUGHT_YUM_SNACKS"])
     STAT_SET_INT("NO_BOUGHT_HEALTH_SNACKS", user_snacks_and_armors_to_refill["NO_BOUGHT_HEALTH_SNACKS"])
     STAT_SET_INT("NO_BOUGHT_EPIC_SNACKS", user_snacks_and_armors_to_refill["NO_BOUGHT_EPIC_SNACKS"])
@@ -375,64 +531,63 @@ auto_refill_snacks_and_armours:toggle_loop("Auto Refill Snacks & Armours", {}, "
     util.yield(10000) -- No need to spam it.
 end)
 
-auto_refill_snacks_and_armours:divider("---------------------------------------")
-auto_refill_snacks_and_armours:divider("Snacks to Refill:")
-auto_refill_snacks_and_armours:divider("---------------------------------------")
-auto_refill_snacks_and_armours:slider("P'S & Q's", {}, 'Number of "P\'S & Q\'s" to refill.', 0, 30, 30, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:divider("---------------------------------------")
+AUTO_REFILL_SNACKS_AND_ARMOURS:divider("Snacks to Refill:")
+AUTO_REFILL_SNACKS_AND_ARMOURS:divider("---------------------------------------")
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("P'S & Q's", {}, 'Number of "P\'S & Q\'s" to refill.', 0, 30, 30, 1, function(value)
     user_snacks_and_armors_to_refill["NO_BOUGHT_YUM_SNACKS"] = value
 end)
-auto_refill_snacks_and_armours:slider("EgoChaser", {}, 'Number of "EgoChaser" to refill.', 0, 15, 15, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("EgoChaser", {}, 'Number of "EgoChaser" to refill.', 0, 15, 15, 1, function(value)
     user_snacks_and_armors_to_refill["NO_BOUGHT_HEALTH_SNACKS"] = value
 end)
-auto_refill_snacks_and_armours:slider("Meteorite", {}, 'Number of "Meteorite" to refill.', 0, 5, 5, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Meteorite", {}, 'Number of "Meteorite" to refill.', 0, 5, 5, 1, function(value)
     user_snacks_and_armors_to_refill["NO_BOUGHT_EPIC_SNACKS"] = value
 end)
-auto_refill_snacks_and_armours:slider("eCola", {}, 'Number of "eCola" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("eCola", {}, 'Number of "eCola" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["NUMBER_OF_ORANGE_BOUGHT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Pisswasser", {}, 'Number of "Pisswasser" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Pisswasser", {}, 'Number of "Pisswasser" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["NUMBER_OF_BOURGE_BOUGHT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Blêuter'd Champagne", {}, 'Number of "Blêuter\'d Champagne" to refill.', 0, 5, 5, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Blêuter'd Champagne", {}, 'Number of "Blêuter\'d Champagne" to refill.', 0, 5, 5, 1, function(value)
     user_snacks_and_armors_to_refill["NUMBER_OF_CHAMP_BOUGHT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Smokes", {}, 'Number of "Smokes" to refill.', 0, 20, 20, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Smokes", {}, 'Number of "Smokes" to refill.', 0, 20, 20, 1, function(value)
     user_snacks_and_armors_to_refill["CIGARETTES_BOUGHT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Sprunk", {}, 'Number of "Sprunk" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Sprunk", {}, 'Number of "Sprunk" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["NUMBER_OF_SPRUNK_BOUGHT"] = value
 end)
-auto_refill_snacks_and_armours:divider("---------------------------------------")
-auto_refill_snacks_and_armours:divider("Armors to Refill:")
-auto_refill_snacks_and_armours:divider("---------------------------------------")
-auto_refill_snacks_and_armours:slider("Super Light Armor", {}, 'Number of "Super Light Armor" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:divider("---------------------------------------")
+AUTO_REFILL_SNACKS_AND_ARMOURS:divider("Armors to Refill:")
+AUTO_REFILL_SNACKS_AND_ARMOURS:divider("---------------------------------------")
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Super Light Armor", {}, 'Number of "Super Light Armor" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["MP_CHAR_ARMOUR_1_COUNT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Light Armor", {}, 'Number of "Light Armor" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Light Armor", {}, 'Number of "Light Armor" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["MP_CHAR_ARMOUR_2_COUNT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Standard Armor", {}, 'Number of "Standard Armor" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Standard Armor", {}, 'Number of "Standard Armor" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["MP_CHAR_ARMOUR_3_COUNT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Heavy Armor", {}, 'Number of "Heavy Armor" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Heavy Armor", {}, 'Number of "Heavy Armor" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["MP_CHAR_ARMOUR_4_COUNT"] = value
 end)
-auto_refill_snacks_and_armours:slider("Super Heavy Armor", {}, 'Number of "Super Heavy Armor" to refill.', 0, 10, 10, 1, function(value)
+AUTO_REFILL_SNACKS_AND_ARMOURS:slider("Super Heavy Armor", {}, 'Number of "Super Heavy Armor" to refill.', 0, 10, 10, 1, function(value)
     user_snacks_and_armors_to_refill["MP_CHAR_ARMOUR_5_COUNT"] = value
 end)
 
+-- (NOT NEEDED) local default_max_weapon_damage_modifier <const> = 1
+-- (NOT NEEDED) local default_max_weapon_damage_modifier <const> = 0.72000002861023
+-- (NOT NEEDED) local default_max_vehicle_weapon_damage_modifier <const> = 0.93599998950958
+-- (NOT NEEDED) local default_max_vehicle_weapon_damage_modifier <const> = 1
+local default_max_bst_weapon_damage_modifier <const> = 1.4400000572205
+local default_max_bst_melee_weapon_damage_modifier <const> = 2
 
--- (NOT NEEDED) local default_max_weapon_damage_modifier = 1
--- (NOT NEEDED) local default_max_weapon_damage_modifier = 0.72000002861023
--- (NOT NEEDED) local default_max_vehicle_weapon_damage_modifier = 0.93599998950958
--- (NOT NEEDED) local default_max_vehicle_weapon_damage_modifier = 1
-local default_max_bst_weapon_damage_modifier = 1.4400000572205
-local default_max_bst_melee_weapon_damage_modifier = 2
+MY_ROOT:toggle_loop("Detect Cheaters", {""}, 'Detect cheaters who\'re using "Weapon/Melee Damage Multiplier".', function()
+    local cheaters <const> = {}
 
-my_root:toggle_loop("Detect Cheaters", {""}, 'Detect cheaters who\'re using "Weapon/Melee Damage Multiplier".', function()
-    local cheaters = {}
-
-    for _, pid in pairs(players.list()) do
+    for players.list() as pid do
         local player = {pid = pid}
         if
             PLAYER.IS_PLAYER_PLAYING(player.pid)
@@ -447,14 +602,22 @@ my_root:toggle_loop("Detect Cheaters", {""}, 'Detect cheaters who\'re using "Wea
             player.melee_weapon_damage_modifier = players.get_melee_weapon_damage_modifier(player.pid)
 
             if
-                (player.weapon_damage_modifier > default_max_bst_weapon_damage_modifier)
-                or (player.melee_weapon_damage_modifier > default_max_bst_melee_weapon_damage_modifier)
+                player.weapon_damage_modifier > default_max_bst_weapon_damage_modifier
+                or (
+                    player.melee_weapon_damage_modifier > default_max_bst_melee_weapon_damage_modifier
+                    and not (
+                        player.melee_weapon_damage_modifier == 100.0
+                        and GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(joaat("am_hunt_the_beast")) ~= 0
+                        -- [TODO]: I'm not actually checking who is the beast player.
+                    )
+                )
             then
                 player.name = players.get_name(player.pid)
                 cheaters[player.pid] = player
             end
         end
     end
+
 
     for pid, player in pairs(cheaters) do
         util.toast(
@@ -468,11 +631,11 @@ my_root:toggle_loop("Detect Cheaters", {""}, 'Detect cheaters who\'re using "Wea
     util.yield(1000) -- No need to spam it.
 end)
 
-my_root:divider("<- - - - - - -  STAND shortcuts  - - - - - - ->")
-my_root:link(menu.ref_by_command_name("thermalvision"), true)
-my_root:link(menu.ref_by_command_name("norollcooldown"), true)
-my_root:link(menu.ref_by_command_name("bst"), true)
-my_root:link(menu.ref_by_command_name("bottomless"), true)
-my_root:link(menu.ref_by_command_name("lockwantedlevel"), true)
-my_root:link(menu.ref_by_command_name("blockphonespam"), true)
-my_root:link(menu.ref_by_path("Online>Session>Session Scripts"), true)
+MY_ROOT:divider("<- - - - - - -  STAND shortcuts  - - - - - - ->")
+MY_ROOT:link(menu.ref_by_command_name("thermalvision"), true)
+MY_ROOT:link(menu.ref_by_command_name("norollcooldown"), true)
+MY_ROOT:link(menu.ref_by_command_name("bst"), true)
+MY_ROOT:link(menu.ref_by_command_name("bottomless"), true)
+MY_ROOT:link(menu.ref_by_command_name("lockwantedlevel"), true)
+MY_ROOT:link(menu.ref_by_command_name("blockphonespam"), true)
+MY_ROOT:link(menu.ref_by_path("Online>Session>Session Scripts"), true)
