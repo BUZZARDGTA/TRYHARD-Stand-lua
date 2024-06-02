@@ -123,8 +123,6 @@ function is_any_game_overlay_open()
     return false
 end
 
-print(string.rep("-", 50))
-
 MY_ROOT:divider("<- " ..  TITLE .. " ->")
 
 local SHOW_IDLE_CROSSHAIR <const> = MY_ROOT:list("Idle Crosshair")
